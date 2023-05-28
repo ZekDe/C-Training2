@@ -636,32 +636,56 @@ void message_queue_Example(void)
     mq_close(mq);
 }
 
-void *thread_proc(void *param);
+void *thread_proc1(void *param);
+void *thread_proc2(void *param);
 
 void thread_Example(void)
 {
-    pthread_t tid;
+    pthread_t tid1;
+    pthread_t tid2;
+    void *tret;
     int result;
 
-    if ((result = pthread_create(&tid, NULL, thread_proc, NULL)) != 0)
+    if ((result = pthread_create(&tid1, NULL, thread_proc1, NULL)) != 0)
+        exit_thread("pthread_create", result);
+    if ((result = pthread_create(&tid2, NULL, thread_proc2, NULL)) != 0)
         exit_thread("pthread_create", result);
 
-    for (int i = 0; i < 5; ++i)
+    for (int i = 0; i < 3; ++i)
     {
         printf("main thread: %d\n", i);
         sleep(1);
     }
 
+    printf("counter completed\n");
+
+    if ((result = pthread_join(tid1, &tret)) != 0)
+            exit_thread("pthread_join", result);
+
+    printf("Thread-2 exited with %ld\n", (long)tret);
+
     printf("press ENTER to exit..\n");
     getchar();
 }
 
-void *thread_proc(void *param)
+void *thread_proc1(void *param)
 {
     int i;
 
     for (i = 0; i < 10; ++i) {
-        printf("other thread: %d\n", i);
+        printf("thread1: %d\n", i);
+        sleep(1);
+    }
+
+    return NULL;
+}
+
+void *thread_proc2(void *param)
+{
+    int i;
+
+    for (i = 0; i < 5; ++i) {
+        printf("thread2: %d\n", i);
         sleep(1);
     }
 
