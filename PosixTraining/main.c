@@ -11,6 +11,7 @@
 #include <sys/mman.h>
 #include <mqueue.h>
 #include <pthread.h>
+#include <time.h>
 
 #define MAX_MSG_SIZE        8192
 
@@ -37,6 +38,9 @@ void shared_memory_Example(void);
 void memory_map_file_Example(void);
 void message_queue_Example(void);
 void thread_Example(void);
+void mutex_Example(void);
+void mutex_Example2(void); // prog1
+
 
 
 int main(int argc, char *argv[])
@@ -57,7 +61,10 @@ int main(int argc, char *argv[])
     //shared_memory_Example(); // prog1
     //memory_map_file_Example();
     //message_queue_Example(); // prog1
-    thread_Example();
+    //thread_Example();
+    //mutex_Example();
+    mutex_Example2();
+
 
     return 0;
 }
@@ -660,7 +667,7 @@ void thread_Example(void)
     printf("counter completed\n");
 
     if ((result = pthread_join(tid1, &tret)) != 0)
-            exit_thread("pthread_join", result);
+        exit_thread("pthread_join", result);
 
     printf("Thread-2 exited with %ld\n", (long)tret);
 
@@ -677,7 +684,7 @@ void *thread_proc1(void *param)
         sleep(1);
     }
 
-    return NULL;
+    return (void*)100;
 }
 
 void *thread_proc2(void *param)
@@ -689,12 +696,141 @@ void *thread_proc2(void *param)
         sleep(1);
     }
 
+    return (void*)200;
+}
+
+void* thread_proc3(void* param);
+void* thread_proc4(void* param);
+void do_machine(const char* name);
+
+pthread_mutex_t g_mutex;
+
+void mutex_Example(void)
+{
+    int result;
+    pthread_t tid1, tid2;
+
+    srand(time(NULL));
+
+    // To prevent self lock, recursive mutex needed
+
+    if ((result = pthread_mutex_init(&g_mutex, NULL)) != 0)
+        exit_thread("pthread_mutex_init", result);
+
+    if ((result = pthread_create(&tid1, NULL, thread_proc3, NULL)) != 0)
+        exit_thread("pthread_create", result);
+
+    if ((result = pthread_create(&tid2, NULL, thread_proc4, NULL)) != 0)
+        exit_thread("pthread_create", result);
+
+    pthread_join(tid1, NULL);
+    pthread_join(tid2, NULL);
+
+    pthread_mutex_destroy(&g_mutex);
+}
+
+void* thread_proc3(void* param)
+{
+    int i;
+
+    for (i = 0; i < 10; ++i)
+        do_machine("thread-1");
+
     return NULL;
 }
 
+void* thread_proc4(void* param)
+{
+    int i;
+
+    for (i = 0; i < 10; ++i)
+        do_machine("thread-2");
+
+    return NULL;
+}
+
+void do_machine(const char* name)
+{
+    pthread_mutex_lock(&g_mutex);
+
+    printf("---------------\n");
+    printf("1) %s\n", name);
+    usleep(rand() % 300000);
+    printf("2) %s\n", name);
+    usleep(rand() % 300000);
+    printf("3) %s\n", name);
+    usleep(rand() % 300000);
+    printf("4) %s\n", name);
+    usleep(rand() % 300000);
+    printf("5) %s\n", name);
+    usleep(rand() % 300000);
+
+    pthread_mutex_unlock(&g_mutex);
+}
 
 
+struct SHARED_OBJECT {
+    pthread_mutex_t mutex;
+    int counter;
+};
 
+void mutex_Example2(void)
+{
+    int fdshm;
+    int result;
+    void* shmaddr;
+    pthread_mutexattr_t mattr;
+    struct SHARED_OBJECT* so;
+    int i;
+
+    if ((fdshm = shm_open("/sample_shared_memory_name", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)) == -1)
+        exit_sys("shm_open");
+
+    if (ftruncate(fdshm, 4096) == -1)
+        exit_sys("ftruncate");
+
+    if ((shmaddr = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fdshm, 0)) == MAP_FAILED)
+        exit_sys("mmap");
+
+    so = (struct SHARED_OBJECT*)shmaddr;
+
+    if ((result = pthread_mutexattr_init(&mattr)) != 0)
+        exit_thread("pthread_mutexattr_init", result);
+
+    if ((result = pthread_mutexattr_setpshared(&mattr, 1)) != 0)
+        exit_thread("pthread_mutexattr_setpshared", result);
+
+    if ((result = pthread_mutex_init(&so->mutex, &mattr)) != 0)
+        exit_thread("pthread_mutexattr_setpshared", result);
+
+    pthread_mutexattr_destroy(&mattr);
+
+    printf("Press ENTER to continue...\n");
+    getchar();
+    printf("Entering loop...\n");
+
+    for (i = 0; i < 10000000; ++i) {
+        pthread_mutex_lock(&so->mutex);
+        ++so->counter;
+        pthread_mutex_unlock(&so->mutex);
+    }
+
+    printf("Press ENTER to exit...\n");
+    getchar();
+
+    printf("Counter: %d\n", so->counter);
+
+    pthread_mutex_destroy(&so->mutex);
+
+    // must be in order to terminate: shmaddr -> fdshm
+    if (munmap(shmaddr, 4096) == -1)
+        exit_sys("munmap");
+
+    close(fdshm);
+
+    if (shm_unlink("/sample_shared_memory_name") == -1) // terminate the shared-memory-obj
+        exit_sys("shm_unlink");
+}
 
 
 void clear_stdin_buffer(void)

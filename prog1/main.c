@@ -9,9 +9,16 @@
 #include <errno.h>
 #include <sys/mman.h>
 #include <mqueue.h>
+#include <time.h>
+#include <pthread.h>
 
 
 #define MAX_MSG_SIZE        8192
+
+struct SHARED_OBJECT {
+    pthread_mutex_t mutex;
+    int counter;
+};
 
 void exit_sys(const char *format, ...);
 void printerr(const char *format, ...);
@@ -19,13 +26,16 @@ void printerr(const char *format, ...);
 void pipe_Example(void);
 void shared_memory_Example(void);
 void message_queue_Example(void);
+void mutex_Example2(void); // PosixTraining
 
 
 int main(int argc, char *argv[])
 {
     //pipe_Example();
     //shared_memory_Example();
-    message_queue_Example();
+    //message_queue_Example();
+    mutex_Example2();
+
     return 0;
 }
 
@@ -116,6 +126,42 @@ void message_queue_Example(void)
     // when the communication is done, delete it
     if (mq_unlink("/sample_message_queue") == -1)
         exit_sys("mq_unlink");
+}
+
+void mutex_Example2(void)
+{
+    int fdshm;
+    void* shmaddr;
+    struct SHARED_OBJECT* so;
+    int i;
+
+    if ((fdshm = shm_open("/sample_shared_memory_name", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)) == -1)
+        exit_sys("shm_open");
+
+    if ((shmaddr = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fdshm, 0)) == MAP_FAILED)
+        exit_sys("mmap");
+
+    so = (struct SHARED_OBJECT*)shmaddr;
+
+    printf("Press ENTER to continue...\n");
+    getchar();
+    printf("Entering loop...\n");
+
+    for (i = 0; i < 10000000; ++i) {
+        pthread_mutex_lock(&so->mutex);
+        ++so->counter;
+        pthread_mutex_unlock(&so->mutex);
+    }
+
+    printf("Press ENTER to exit...\n");
+    getchar();
+
+    printf("Counter: %d\n", so->counter);
+
+    if (munmap(shmaddr, 4096) == -1)
+        exit_sys("munmap");
+
+    close(fdshm);
 }
 
 

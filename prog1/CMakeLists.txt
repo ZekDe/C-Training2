@@ -7,4 +7,4 @@ add_executable(prog1 main.c)
 install(TARGETS prog1
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
-target_link_libraries(prog1 -lrt)
+target_link_libraries(prog1 -lrt -pthread)
