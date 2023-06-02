@@ -12,6 +12,7 @@
 #include <mqueue.h>
 #include <pthread.h>
 #include <time.h>
+#include <semaphore.h>
 
 #define MAX_MSG_SIZE        8192
 
@@ -30,17 +31,17 @@ void SimpleShell_Example(void);
 void dup_Example(void);
 void dup2_rout_Example(void);
 void redirect_Example(int argc, char *argv[]);
-void pipe_Example(void);
+void pipe_Example(void); // prog1
 void pipe_bash_Example(int argc, char *argv[]);
 void pipe_Example2(int argc, char *argv[]);
 void pipe_Example3(void);
-void shared_memory_Example(void);
+void shared_memory_Example(void); // prog1
 void memory_map_file_Example(void);
-void message_queue_Example(void);
+void message_queue_Example(void);// prog1
 void thread_Example(void);
 void mutex_Example(void);
 void mutex_Example2(void); // prog1
-
+void semaphore_producer_Example(void); // prog1 semaphore_consumer_Example
 
 
 int main(int argc, char *argv[])
@@ -63,7 +64,9 @@ int main(int argc, char *argv[])
     //message_queue_Example(); // prog1
     //thread_Example();
     //mutex_Example();
-    mutex_Example2();
+    //mutex_Example2();
+    semaphore_producer_Example();
+
 
 
     return 0;
@@ -809,7 +812,7 @@ void mutex_Example2(void)
     getchar();
     printf("Entering loop...\n");
 
-    for (i = 0; i < 10000000; ++i) {
+    for (i = 0; i < 100000000; ++i) {
         pthread_mutex_lock(&so->mutex);
         ++so->counter;
         pthread_mutex_unlock(&so->mutex);
@@ -829,6 +832,61 @@ void mutex_Example2(void)
     close(fdshm);
 
     if (shm_unlink("/sample_shared_memory_name") == -1) // terminate the shared-memory-obj
+        exit_sys("shm_unlink");
+}
+
+void semaphore_producer_Example(void)
+{
+    int fdshm;
+    void *shmaddr;
+    int *pshared;
+    sem_t *sem_producer;
+    sem_t *sem_consumer;
+    int i;
+
+    if ((fdshm = shm_open("/interprocess-producer-consumer-shared-memory", O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)) == -1)
+        exit_sys("shm_open");
+
+    if (ftruncate(fdshm, 4096) == -1)
+        exit_sys("ftruncate");
+
+    if ((shmaddr = mmap(NULL, 4096, PROT_READ | PROT_WRITE, MAP_SHARED, fdshm, 0)) == MAP_FAILED)
+        exit_sys("mmap");
+
+    pshared = (int *)shmaddr;
+
+    if ((sem_producer = sem_open("/interprocess-producer-consumer-producer-semaphore", O_RDONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, 1)) == NULL)
+        exit_sys("sem_open");
+
+    if ((sem_consumer = sem_open("/interprocess-producer-consumer-consumer-semaphore", O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH, 0)) == NULL)
+        exit_sys("sem_open");
+
+    i = 0;
+    for (;;) {
+        usleep(rand() % 300000);
+        sem_wait(sem_producer);
+        *pshared = i;
+        sem_post(sem_consumer);
+        ++i;
+        if (i == 100)
+            break;
+    }
+
+    sem_destroy(sem_consumer);
+    sem_destroy(sem_producer);
+
+    if (sem_unlink("/interprocess-producer-consumer-consumer-semaphore") == -1)
+        exit_sys("shm_unlink");
+
+    if (sem_unlink("/interprocess-producer-consumer-producer-semaphore") == -1)
+        exit_sys("shm_unlink");
+
+    if (munmap(shmaddr, 4096) == -1)
+        exit_sys("munmap");
+
+    close(fdshm);
+
+    if (shm_unlink("/interprocess-producer-consumer-shared-memory") == -1)
         exit_sys("shm_unlink");
 }
 

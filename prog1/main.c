@@ -11,6 +11,7 @@
 #include <mqueue.h>
 #include <time.h>
 #include <pthread.h>
+#include <semaphore.h>
 
 
 #define MAX_MSG_SIZE        8192
@@ -23,10 +24,11 @@ struct SHARED_OBJECT {
 void exit_sys(const char *format, ...);
 void printerr(const char *format, ...);
 
-void pipe_Example(void);
-void shared_memory_Example(void);
-void message_queue_Example(void);
+void pipe_Example(void); // PosixTraining
+void shared_memory_Example(void); // PosixTraining
+void message_queue_Example(void); // PosixTraining
 void mutex_Example2(void); // PosixTraining
+void semaphore_consumer_Example(void); // PosixTraining
 
 
 int main(int argc, char *argv[])
@@ -34,7 +36,8 @@ int main(int argc, char *argv[])
     //pipe_Example();
     //shared_memory_Example();
     //message_queue_Example();
-    mutex_Example2();
+    //mutex_Example2();
+    semaphore_consumer_Example();
 
     return 0;
 }
@@ -147,7 +150,7 @@ void mutex_Example2(void)
     getchar();
     printf("Entering loop...\n");
 
-    for (i = 0; i < 10000000; ++i) {
+    for (i = 0; i < 100000000; ++i) {
         pthread_mutex_lock(&so->mutex);
         ++so->counter;
         pthread_mutex_unlock(&so->mutex);
@@ -164,6 +167,48 @@ void mutex_Example2(void)
     close(fdshm);
 }
 
+void semaphore_consumer_Example(void)
+{
+    int fdshm;
+    void *shmaddr;
+    int *pshared;
+    sem_t *sem_producer;
+    sem_t *sem_consumer;
+    int val;
+
+    if ((fdshm = shm_open("/interprocess-producer-consumer-shared-memory", O_RDONLY, 0)) == -1)
+        exit_sys("shm_open");
+
+    if ((shmaddr = mmap(NULL, 4096, PROT_READ, MAP_SHARED, fdshm, 0)) == MAP_FAILED)
+        exit_sys("mmap");
+
+    pshared = (int *)shmaddr;
+
+    if ((sem_producer = sem_open("/interprocess-producer-consumer-producer-semaphore", O_WRONLY)) == NULL)
+        exit_sys("sem_open");
+
+    if ((sem_consumer = sem_open("/interprocess-producer-consumer-consumer-semaphore", O_RDONLY)) == NULL)
+        exit_sys("sem_open");
+
+    for (;;) {
+        usleep(rand() % 300000);
+        sem_wait(sem_consumer);
+        val = *pshared;
+        sem_post(sem_producer);
+        printf("%d ", val), fflush(stdout);
+        if (val == 99)
+            break;
+    }
+    putchar('\n');
+
+    sem_destroy(sem_consumer);
+    sem_destroy(sem_producer);
+
+    if (munmap(shmaddr, 4096) == -1)
+        exit_sys("munmap");
+
+    close(fdshm);
+}
 
 void printerr(const char *format, ...)
 {
