@@ -876,10 +876,10 @@ void semaphore_producer_Example(void)
     sem_destroy(sem_producer);
 
     if (sem_unlink("/interprocess-producer-consumer-consumer-semaphore") == -1)
-        exit_sys("shm_unlink");
+        exit_sys("sem_unlink");
 
     if (sem_unlink("/interprocess-producer-consumer-producer-semaphore") == -1)
-        exit_sys("shm_unlink");
+        exit_sys("sem_unlink");
 
     if (munmap(shmaddr, 4096) == -1)
         exit_sys("munmap");
