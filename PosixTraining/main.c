@@ -15,6 +15,8 @@
 #include <semaphore.h>
 
 #define MAX_MSG_SIZE        8192
+#define NTHREADS				30
+#define MAX_THREAD_NAME			32
 
 void clear_stdin_buffer(void);
 void printerr(const char *format, ...);
@@ -42,6 +44,7 @@ void thread_Example(void);
 void mutex_Example(void);
 void mutex_Example2(void); // prog1
 void semaphore_producer_Example(void); // prog1 semaphore_consumer_Example
+void read_write_lock_Example(void);
 
 
 int main(int argc, char *argv[])
@@ -65,8 +68,8 @@ int main(int argc, char *argv[])
     //thread_Example();
     //mutex_Example();
     //mutex_Example2();
-    semaphore_producer_Example();
-
+    //semaphore_producer_Example();
+    read_write_lock_Example();
 
 
     return 0;
@@ -645,7 +648,7 @@ void message_queue_Example(void)
 
     mq_close(mq);
 }
-
+/***************************************************************************/
 void *thread_proc1(void *param);
 void *thread_proc2(void *param);
 
@@ -702,6 +705,7 @@ void *thread_proc2(void *param)
     return (void*)200;
 }
 
+/***************************************************************************/
 void* thread_proc3(void* param);
 void* thread_proc4(void* param);
 void do_machine(const char* name);
@@ -771,6 +775,7 @@ void do_machine(const char* name)
     pthread_mutex_unlock(&g_mutex);
 }
 
+/***************************************************************************/
 
 struct SHARED_OBJECT {
     pthread_mutex_t mutex;
@@ -835,6 +840,7 @@ void mutex_Example2(void)
         exit_sys("shm_unlink");
 }
 
+/***************************************************************************/
 void semaphore_producer_Example(void)
 {
     int fdshm;
@@ -889,6 +895,81 @@ void semaphore_producer_Example(void)
     if (shm_unlink("/interprocess-producer-consumer-shared-memory") == -1)
         exit_sys("shm_unlink");
 }
+
+/***************************************************************************/
+
+void *thread_write_read_lock(void *param);
+void read_resource(const char *name);
+void write_resource(const char *name);
+
+pthread_rwlock_t g_rwlock;
+
+void read_write_lock_Example(void)
+{
+    int result;
+    pthread_t tids[NTHREADS];
+    int i;
+    char *name;
+
+    srand(time(NULL));
+
+    if ((result = pthread_rwlock_init(&g_rwlock, NULL)) != 0)
+        exit_thread("pthread_rwlock_init", result);
+
+    for (i = 0; i < NTHREADS; ++i) {
+        if ((name = (char *)malloc(MAX_THREAD_NAME)) == NULL) {
+            fprintf(stderr, "cannot allocate memory!..\n");
+            exit(EXIT_FAILURE);
+        }
+        sprintf(name, "Thread-%d", i + 1);
+        if ((result = pthread_create(&tids[i], NULL, thread_write_read_lock, name)) != 0)
+            exit_thread("pthread_create", result);
+    }
+
+    for (i = 0; i < NTHREADS; ++i){
+        pthread_join(tids[i], NULL);
+        printf("%d\n",i);
+    }
+
+
+    pthread_rwlock_destroy(&g_rwlock);
+
+}
+
+void *thread_write_read_lock(void *param)
+{
+    int i;
+
+    for (i = 0; i < 10; ++i) {
+        if (rand() % 2 == 0)
+            write_resource(param);
+        else
+            read_resource(param);
+    }
+
+    free(param);
+
+    return NULL;
+}
+
+void read_resource(const char *name)
+{
+    pthread_rwlock_rdlock(&g_rwlock);
+    printf("%s READING starts...\n", name);
+    usleep(rand() % 1000000);
+    printf("%s READING ends...\n", name);
+    pthread_rwlock_unlock(&g_rwlock);
+}
+
+void write_resource(const char *name)
+{
+    pthread_rwlock_wrlock(&g_rwlock);
+    printf("%s WRITING starts...\n", name);
+    usleep(rand() % 100000);
+    printf("%s WRITING ends...\n", name);
+    pthread_rwlock_unlock(&g_rwlock);
+}
+
 
 
 void clear_stdin_buffer(void)
