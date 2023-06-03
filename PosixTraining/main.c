@@ -45,6 +45,7 @@ void mutex_Example(void);
 void mutex_Example2(void); // prog1
 void semaphore_producer_Example(void); // prog1 semaphore_consumer_Example
 void read_write_lock_Example(void);
+void condition_variables_Example(void);
 
 
 int main(int argc, char *argv[])
@@ -69,7 +70,8 @@ int main(int argc, char *argv[])
     //mutex_Example();
     //mutex_Example2();
     //semaphore_producer_Example();
-    read_write_lock_Example();
+    //read_write_lock_Example();
+    condition_variables_Example();
 
 
     return 0;
@@ -968,6 +970,102 @@ void write_resource(const char *name)
     usleep(rand() % 100000);
     printf("%s WRITING ends...\n", name);
     pthread_rwlock_unlock(&g_rwlock);
+}
+/***************************************************************************/
+void *thread_condition_var1(void* param);
+void *thread_condition_var2(void* param);
+
+pthread_cond_t g_cond = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t g_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+int g_condition = 0;
+
+void condition_variables_Example(void)
+{
+    int result;
+    pthread_t tid1, tid2;
+
+    if ((result = pthread_create(&tid1, NULL, thread_condition_var1, NULL)) != 0)
+        exit_thread("pthread_create", result);
+
+    if ((result = pthread_create(&tid2, NULL, thread_condition_var2, NULL)) != 0)
+        exit_thread("pthread_create", result);
+
+    printf("press ENTER to continue...\n");
+    getchar();
+
+    if ((result = pthread_mutex_lock(&g_mutex)))
+        exit_thread("pthread_mutex_lock", result);
+
+    g_condition = 1;
+
+    if ((result = pthread_cond_broadcast(&g_cond)) != 0)
+        exit_thread("pthread_cond_signal", result);
+
+    if ((result = pthread_mutex_unlock(&g_mutex)))
+        exit_thread("pthread_mutex_unlock", result);
+
+
+    printf("press ENTER to continue...\n");
+    getchar();
+
+    if ((result = pthread_mutex_lock(&g_mutex)))
+        exit_thread("pthread_mutex_lock", result);
+
+    g_condition = 2;
+
+    if ((result = pthread_cond_broadcast(&g_cond)) != 0)
+        exit_thread("pthread_cond_signal", result);
+
+    if ((result = pthread_mutex_unlock(&g_mutex)))
+        exit_thread("pthread_mutex_unlock", result);
+
+    printf("press ENTER to exit...\n");
+    getchar();
+
+    pthread_join(tid1, NULL);
+    pthread_join(tid2, NULL);
+
+    pthread_mutex_destroy(&g_mutex);
+    pthread_cond_destroy(&g_cond);
+}
+
+void *thread_condition_var1(void *param)
+{
+    int result;
+
+    if ((result = pthread_mutex_lock(&g_mutex)) != 0)
+        exit_thread("pthread_mutex_lock", result);
+
+    while (g_condition != 1)
+        if ((result = pthread_cond_wait(&g_cond, &g_mutex)) != 0)
+            exit_thread("pthread_cond_wait", result);
+
+    printf("thread_condition_var1 ---> Koşul sağlandı...\n");
+
+    if ((result = pthread_mutex_unlock(&g_mutex)) != 0)
+        exit_thread("pthread_mutex_lock", result);
+
+    return NULL;
+}
+
+void *thread_condition_var2(void *param)
+{
+    int result;
+
+    if ((result = pthread_mutex_lock(&g_mutex)) != 0)
+        exit_thread("pthread_mutex_lock", result);
+
+    while (g_condition != 2)
+        if ((result = pthread_cond_wait(&g_cond, &g_mutex)) != 0)
+            exit_thread("pthread_cond_wait", result);
+
+    printf("thread_condition_var2 ---> Koşul sağlandı...\n");
+
+    if ((result = pthread_mutex_unlock(&g_mutex)) != 0)
+        exit_thread("pthread_mutex_lock", result);
+
+    return NULL;
 }
 
 
