@@ -1037,7 +1037,7 @@ void *thread_condition_var1(void *param)
     if ((result = pthread_mutex_lock(&g_mutex)) != 0)
         exit_thread("pthread_mutex_lock", result);
 
-    while (g_condition != 1) // alsa it prevents "supurious wake-up"
+    while (g_condition != 1) // alsa it prevents "spurious wake-up"
         if ((result = pthread_cond_wait(&g_cond, &g_mutex)) != 0)
             exit_thread("pthread_cond_wait", result);
 
