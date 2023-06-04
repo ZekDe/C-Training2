@@ -1000,7 +1000,7 @@ void condition_variables_Example(void)
     g_condition = 1;
 
     if ((result = pthread_cond_broadcast(&g_cond)) != 0)
-        exit_thread("pthread_cond_signal", result);
+        exit_thread("pthread_cond_broadcast", result);
 
     if ((result = pthread_mutex_unlock(&g_mutex)))
         exit_thread("pthread_mutex_unlock", result);
@@ -1015,7 +1015,7 @@ void condition_variables_Example(void)
     g_condition = 2;
 
     if ((result = pthread_cond_broadcast(&g_cond)) != 0)
-        exit_thread("pthread_cond_signal", result);
+        exit_thread("pthread_cond_broadcast", result);
 
     if ((result = pthread_mutex_unlock(&g_mutex)))
         exit_thread("pthread_mutex_unlock", result);
@@ -1037,7 +1037,7 @@ void *thread_condition_var1(void *param)
     if ((result = pthread_mutex_lock(&g_mutex)) != 0)
         exit_thread("pthread_mutex_lock", result);
 
-    while (g_condition != 1)
+    while (g_condition != 1) // alsa it prevents "supurious wake-up"
         if ((result = pthread_cond_wait(&g_cond, &g_mutex)) != 0)
             exit_thread("pthread_cond_wait", result);
 
